@@ -9,7 +9,7 @@ pipeline {
         IMG_ENTREPRISEX = "${REGISTRY}/wellness-entreprisex"
         IMG_ENTREPRISEY = "${REGISTRY}/wellness-entreprisey"
         IMG_GATEWAY     = "${REGISTRY}/wellness-gateway"
-        MAIL_TO         = "n.belkhiria@wellnesshub.com.tn"
+        MAIL_TO         = "your-email@example.com"
         BUILD_TAG       = "build-${BUILD_NUMBER}"
     }
 
@@ -258,12 +258,12 @@ Services to rebuild :
         success {
             echo 'PIPELINE COMPLETED SUCCESSFULLY!'
             echo 'Application is running at:'
-            echo '   Eureka Dashboard : http://100.122.204.32:8761'
-            echo '   API Gateway      : http://100.122.204.32:8762'
-            echo '   Admin MS         : http://100.122.204.32:8763'
-            echo '   Expert MS        : http://100.122.204.32:8764'
-            echo '   Entreprise X     : http://100.122.204.32:8765'
-            echo '   Entreprise Y     : http://100.122.204.32:8766'
+            echo '   Eureka Dashboard : http://<VM_TAILSCALE_IP>:8761'
+            echo '   API Gateway      : http://<VM_TAILSCALE_IP>:8762'
+            echo '   Admin MS         : http://<VM_TAILSCALE_IP>:8763'
+            echo '   Expert MS        : http://<VM_TAILSCALE_IP>:8764'
+            echo '   Entreprise X     : http://<VM_TAILSCALE_IP>:8765'
+            echo '   Entreprise Y     : http://<VM_TAILSCALE_IP>:8766'
 
             mail(
                 to: "${MAIL_TO}",
@@ -281,12 +281,12 @@ Details du build :
 - Declenche  : Push sur branche main (GitHub Webhook)
 
 Services deployes et accessibles :
-- Eureka Dashboard : http://100.122.204.32:8761
-- API Gateway      : http://100.122.204.32:8762
-- Admin MS         : http://100.122.204.32:8763
-- Expert MS        : http://100.122.204.32:8764
-- Entreprise X     : http://100.122.204.32:8765
-- Entreprise Y     : http://100.122.204.32:8766
+- Eureka Dashboard : http://<VM_TAILSCALE_IP>:8761
+- API Gateway      : http://<VM_TAILSCALE_IP>:8762
+- Admin MS         : http://<VM_TAILSCALE_IP>:8763
+- Expert MS        : http://<VM_TAILSCALE_IP>:8764
+- Entreprise X     : http://<VM_TAILSCALE_IP>:8765
+- Entreprise Y     : http://<VM_TAILSCALE_IP>:8766
 
 Images dans la registry locale (192.168.49.1:5000) :
 - wellness-X:latest    (version courante)

@@ -4,7 +4,7 @@ pipeline {
     environment {
         REGISTRY        = "192.168.49.1:5000"
         NAMESPACE       = "wellnesshub"
-        MAIL_TO         = "n.belkhiria@wellnesshub.com.tn"
+        MAIL_TO         = "your-email@example.com"
     }
 
     stages {
@@ -76,9 +76,9 @@ pipeline {
         success {
             echo 'K8S DEPLOYMENT COMPLETED SUCCESSFULLY!'
             echo 'Services accessible at:'
-            echo '   Frontend  : http://100.122.204.32:30080'
-            echo '   Gateway   : http://100.122.204.32:30762'
-            echo '   Eureka    : http://100.122.204.32:9761'
+            echo '   Frontend  : http://<VM_TAILSCALE_IP>:30080'
+            echo '   Gateway   : http://<VM_TAILSCALE_IP>:30762'
+            echo '   Eureka    : http://<VM_TAILSCALE_IP>:9761'
 
             mail(
                 to: "${MAIL_TO}",
@@ -101,9 +101,9 @@ Services mis a jour dans Kubernetes :
 - wellness-front-prod:latest
 
 URLs d acces :
-- Frontend  : http://100.122.204.32:30080
-- Gateway   : http://100.122.204.32:30762
-- Eureka    : http://100.122.204.32:9761
+- Frontend  : http://<VM_TAILSCALE_IP>:30080
+- Gateway   : http://<VM_TAILSCALE_IP>:30762
+- Eureka    : http://<VM_TAILSCALE_IP>:9761
 
 Lien du build : ${BUILD_URL}
 

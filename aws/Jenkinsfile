@@ -172,7 +172,7 @@ pipeline {
 <p>🔗 <a href="${BUILD_URL}console">Voir les logs</a> | <a href="${BUILD_URL}rebuild">Relancer</a></p>
 </body></html>""",
                     mimeType: 'text/html',
-                    to: 'n.belkhiria@wellnesshub.com.tn'
+                    to: 'your-email@example.com'
                 )
             }
         }
@@ -189,7 +189,7 @@ pipeline {
 </div>
 </body></html>""",
                 mimeType: 'text/html',
-                to: 'n.belkhiria@wellnesshub.com.tn'
+                to: 'your-email@example.com'
             )
         }
     }

@@ -172,7 +172,7 @@ Rapport structuré :
   ⚡ NIVEAU DE CRITICITÉ
   💡 CONSEIL
     ↓
-Email HTML enrichi → n.belkhiria@wellnesshub.com.tn
+Email HTML enrichi → your-email@example.com
 ```
 
 ```python
@@ -199,7 +199,7 @@ Déployé sur EC2 via SSH. Particularités :
 ### Webhook GitHub
 
 ```
-URL    : https://agreed-lake-ritalin.ngrok-free.dev/github-webhook/
+URL    : https://<your-ngrok-url>.ngrok-free.dev/github-webhook/
 Type   : application/json
 Events : Push only
 ```
