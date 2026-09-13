@@ -12,19 +12,6 @@
 
 ---
 
-## Contexte du projet
-
-**Projet de Fin d'Études (PFE) — ESPRIT**
-
-| Champ | Valeur |
-|-------|--------|
-| Projet | Infrastructure Cloud AWS et DevOps Hybride |
-| Etudiante | Nour El Imen Belkhiria — ESPRIT, 5ème année Cloud & DevOps |
-| Entreprise | WellnessHub |
-| Stack | Spring Boot · React/Next.js · Jenkins · Docker · Kubernetes · AWS |
-
----
-
 ## Structure du repo
 
 ```
@@ -249,4 +236,4 @@ Events : Push only
 
 ---
 
-*Nour El Imen Belkhiria — ESPRIT × WellnessHub — 2026*
+*Nour El Imen Belkhiria — 2026*
