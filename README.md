@@ -14,13 +14,13 @@
 
 ## Contexte du projet
 
-**Projet de Fin d'Études (PFE) — ESPRIT 2024/2025**
+**Projet de Fin d'Études (PFE) — ESPRIT**
 
 | Champ | Valeur |
 |-------|--------|
 | Projet | Infrastructure Cloud AWS et DevOps Hybride |
 | Etudiante | Nour El Imen Belkhiria — ESPRIT, 5ème année Cloud & DevOps |
-| Entreprise | WellnessHub × AuroraIQ |
+| Entreprise | WellnessHub |
 | Stack | Spring Boot · React/Next.js · Jenkins · Docker · Kubernetes · AWS |
 
 ---
@@ -245,14 +245,8 @@ Events : Push only
 ## Liens utiles
 
 - 📦 [Manifests Kubernetes](https://github.com/belkhirianourelimen/k8s-manifests)
-- 🏗️ Infrastructure Terraform AWS *(repo séparé)*
+- 🏗️ [Infrastructure Terraform AWS](https://github.com/belkhirianourelimen/aws-infra-terraform.git)
 
 ---
 
-## Licence
-
-Projet académique — PFE ESPRIT 2024/2025.
-
----
-
-*Nour El Imen Belkhiria — ESPRIT × AuroraIQ × WellnessHub — 2025*
+*Nour El Imen Belkhiria — ESPRIT × WellnessHub — 2026*
