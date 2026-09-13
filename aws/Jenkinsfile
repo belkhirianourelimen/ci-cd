@@ -1,0 +1,196 @@
+pipeline {
+    agent any
+
+    environment {
+        AWS_REGION       = 'us-east-1'
+        AWS_ACCOUNT_ID   = 'YOUR_AWS_ACCOUNT_ID'
+        ECR_REGISTRY     = "${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
+        PROJECT_NAME     = 'wellnesshub'
+        BACKEND_REPO     = 'https://github.com/yedeshamda/WellnessHub-Backend.git'
+        FRONTEND_REPO    = 'https://github.com/malekjendoubi21/wellnessHub-Production.git'
+        EC2_HOST         = 'YOUR_EC2_PUBLIC_IP'
+        EC2_USER         = 'ec2-user'
+        IMAGE_TAG        = "${BUILD_NUMBER}"
+    }
+
+    stages {
+
+        stage('Checkout') {
+            steps {
+                script {
+                    dir('backend') {
+                        git branch: 'main', url: "${BACKEND_REPO}", credentialsId: 'github-credentials'
+                    }
+                    dir('frontend') {
+                        git branch: 'main', url: "${FRONTEND_REPO}", credentialsId: 'malek-github'
+                    }
+                }
+            }
+        }
+
+        stage('SonarQube Analysis') {
+            steps {
+                dir('backend/ExpertMs') {
+                    withSonarQubeEnv('sonarqube') {
+                        sh '''
+                            mvn clean verify sonar:sonar \
+                              -Dsonar.projectKey=wellnesshub-backend \
+                              -Dmaven.test.skip=true
+                        '''
+                    }
+                }
+            }
+        }
+
+        stage('Build Docker Images') {
+            steps {
+                script {
+                    sh "docker build -t ${PROJECT_NAME}/eureka:${IMAGE_TAG} ./backend/Eureka"
+                    sh "docker build -t ${PROJECT_NAME}/gateway:${IMAGE_TAG} ./backend/API_Gateway"
+                    sh "docker build -t ${PROJECT_NAME}/expertms:${IMAGE_TAG} ./backend/ExpertMs"
+                    sh "docker build -t ${PROJECT_NAME}/front:${IMAGE_TAG} ./frontend"
+                }
+            }
+        }
+
+        stage('Trivy Security Scan') {
+            steps {
+                script {
+                    def services = ['eureka', 'gateway', 'expertms', 'front']
+                    services.each { svc ->
+                        sh """
+                            trivy image --severity HIGH,CRITICAL --exit-code 0 \
+                              --format table -o trivy-${svc}.txt \
+                              ${PROJECT_NAME}/${svc}:${IMAGE_TAG}
+                        """
+                    }
+                }
+            }
+        }
+
+        stage('Push to ECR') {
+            steps {
+                script {
+                    sh """
+                        aws ecr get-login-password --region ${AWS_REGION} | \
+                        docker login --username AWS --password-stdin ${ECR_REGISTRY}
+                    """
+                    def services = ['eureka', 'gateway', 'expertms', 'front']
+                    services.each { svc ->
+                        sh """
+                            docker tag ${PROJECT_NAME}/${svc}:${IMAGE_TAG} \
+                              ${ECR_REGISTRY}/${PROJECT_NAME}/${svc}:latest
+                            docker push ${ECR_REGISTRY}/${PROJECT_NAME}/${svc}:latest
+                        """
+                    }
+                }
+            }
+        }
+
+        stage('Retrieve DB Secrets') {
+            steps {
+                script {
+                    env.DB_ENDPOINT = sh(
+                        script: "aws ssm get-parameter --name /wellnesshub/db/endpoint --region ${AWS_REGION} --query 'Parameter.Value' --output text",
+                        returnStdout: true
+                    ).trim()
+                    env.DB_USERNAME = sh(
+                        script: "aws ssm get-parameter --name /wellnesshub/db/username --region ${AWS_REGION} --query 'Parameter.Value' --output text",
+                        returnStdout: true
+                    ).trim()
+                    env.DB_PASSWORD = sh(
+                        script: "aws ssm get-parameter --name /wellnesshub/db/password --with-decryption --region ${AWS_REGION} --query 'Parameter.Value' --output text",
+                        returnStdout: true
+                    ).trim()
+                }
+            }
+        }
+
+        stage('Deploy to EC2') {
+            steps {
+                sshagent(credentials: ['ec2-ssh-key']) {
+                    sh """
+                        scp -o StrictHostKeyChecking=no docker-compose-aws.yml \
+                          ${EC2_USER}@${EC2_HOST}:/home/ec2-user/docker-compose.yml
+
+                        ssh -o StrictHostKeyChecking=no ${EC2_USER}@${EC2_HOST} '
+                            aws ecr get-login-password --region ${AWS_REGION} | \
+                              docker login --username AWS --password-stdin ${ECR_REGISTRY}
+                            export ECR_REGISTRY=${ECR_REGISTRY}
+                            export PROJECT_NAME=${PROJECT_NAME}
+                            export DB_ENDPOINT="${DB_ENDPOINT}"
+                            export DB_USERNAME="${DB_USERNAME}"
+                            export DB_PASSWORD="${DB_PASSWORD}"
+                            docker-compose pull
+                            docker-compose up -d
+                        '
+                    """
+                }
+            }
+        }
+    }
+
+    post {
+        failure {
+            script {
+                def buildLog = ""
+                try {
+                    def logPath = "${JENKINS_HOME}/jobs/${JOB_NAME}/builds/${BUILD_NUMBER}/log"
+                    buildLog = sh(
+                        script: "tail -150 '${logPath}' 2>/dev/null || echo 'Logs non disponibles'",
+                        returnStdout: true
+                    ).trim()
+                } catch (Exception ex) {
+                    buildLog = "Impossible de lire les logs : ${ex.message}"
+                }
+
+                writeFile file: 'jenkins_failure.log', text: buildLog
+
+                def aiDiagnostic = "Diagnostic IA non disponible"
+                withCredentials([string(credentialsId: 'openai-api-key', variable: 'OPENAI_API_KEY')]) {
+                    try {
+                        aiDiagnostic = sh(
+                            script: "python3 ${WORKSPACE}/aws/ai_diagnostic.py jenkins_failure.log 'FAILURE' '${BUILD_NUMBER}'",
+                            returnStdout: true
+                        ).trim()
+                    } catch (Exception e) {
+                        aiDiagnostic = "Erreur lors de l'analyse IA : ${e.message}"
+                    }
+                }
+
+                emailext(
+                    subject: "❌ [WellnessHub] Build #${BUILD_NUMBER} ÉCHOUÉ — Diagnostic IA disponible",
+                    body: """<html><body style="font-family: Arial, sans-serif; max-width: 800px;">
+<div style="background: #dc3545; color: white; padding: 20px; border-radius: 8px 8px 0 0;">
+    <h2>❌ Pipeline Jenkins — ÉCHEC</h2>
+    <p><strong>Build :</strong> #${BUILD_NUMBER} | <strong>Date :</strong> ${new Date()}</p>
+</div>
+<div style="background: #fff3cd; padding: 20px; border: 1px solid #ffc107; margin-top: 10px; border-radius: 4px;">
+    <h3>🤖 Diagnostic IA (GPT-4o-mini)</h3>
+    <pre style="background:#1e1e1e;color:#d4d4d4;padding:15px;border-radius:4px;white-space:pre-wrap;">${aiDiagnostic}</pre>
+</div>
+<p>🔗 <a href="${BUILD_URL}console">Voir les logs</a> | <a href="${BUILD_URL}rebuild">Relancer</a></p>
+</body></html>""",
+                    mimeType: 'text/html',
+                    to: 'n.belkhiria@wellnesshub.com.tn'
+                )
+            }
+        }
+
+        success {
+            emailext(
+                subject: "✅ [WellnessHub] Build #${BUILD_NUMBER} SUCCÈS",
+                body: """<html><body style="font-family: Arial, sans-serif;">
+<div style="background: #28a745; color: white; padding: 20px; border-radius: 8px;">
+    <h2>✅ Pipeline Jenkins — SUCCÈS</h2>
+    <p><strong>Build :</strong> #${BUILD_NUMBER} | <strong>Durée :</strong> ${currentBuild.durationString}</p>
+    <p>🚀 WellnessHub déployé sur EC2 avec succès</p>
+    <p>🔗 <a href="${BUILD_URL}" style="color:white;">Détails du build</a></p>
+</div>
+</body></html>""",
+                mimeType: 'text/html',
+                to: 'n.belkhiria@wellnesshub.com.tn'
+            )
+        }
+    }
+}

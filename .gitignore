@@ -1,0 +1,21 @@
+# Secrets et données sensibles
+.env
+*.secret
+credentials.yaml
+openai_key.txt
+
+# Rapports Trivy générés par le pipeline
+trivy-*.txt
+
+# Logs Jenkins
+jenkins_failure.log
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/
+*.swp

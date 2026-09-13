@@ -1,0 +1,146 @@
+pipeline {
+    agent any
+
+    environment {
+        REGISTRY        = "192.168.49.1:5000"
+        NAMESPACE       = "wellnesshub"
+        MAIL_TO         = "n.belkhiria@wellnesshub.com.tn"
+    }
+
+    stages {
+
+        stage('Verify Cluster') {
+            steps {
+                echo 'Verifying Minikube cluster...'
+                sh 'kubectl get nodes'
+                sh 'kubectl get pods -n wellnesshub || echo "Namespace not found yet"'
+                echo 'Cluster OK'
+            }
+        }
+
+        stage('Load Images into Minikube') {
+            steps {
+                echo 'Loading new images from local registry into Minikube...'
+                sh "minikube image load ${REGISTRY}/wellness-eureka:latest"
+                sh "minikube image load ${REGISTRY}/wellness-expertms:latest"
+                sh "minikube image load ${REGISTRY}/wellness-gateway:latest"
+                echo 'All images loaded into Minikube!'
+                sh 'minikube image ls | grep wellness'
+            }
+        }
+
+        stage('Deploy or Update Kubernetes') {
+            steps {
+                echo 'Checking if namespace exists...'
+                sh '''
+                    if kubectl get namespace wellnesshub > /dev/null 2>&1; then
+                        echo "Namespace exists - updating deployment..."
+                        kubectl rollout restart deployment/eureka -n wellnesshub || true
+                        kubectl rollout restart deployment/expertms -n wellnesshub || true
+                        kubectl rollout restart deployment/gateway -n wellnesshub || true
+                        kubectl rollout restart deployment/frontend -n wellnesshub || true
+                    else
+                        echo "Namespace does not exist - deploying from scratch..."
+                        cd /var/jenkins_home/k8s
+                        bash deploy-minimal.sh
+                    fi
+                '''
+            }
+        }
+
+        stage('Wait for Rollout') {
+            steps {
+                echo 'Waiting for all deployments to be ready...'
+                sh 'kubectl rollout status deployment/eureka -n wellnesshub --timeout=180s'
+                sh 'kubectl rollout status deployment/expertms -n wellnesshub --timeout=180s'
+                sh 'kubectl rollout status deployment/gateway -n wellnesshub --timeout=180s'
+                sh 'kubectl rollout status deployment/frontend -n wellnesshub --timeout=120s'
+                echo 'All deployments are ready!'
+            }
+        }
+
+        stage('Verify Pods') {
+            steps {
+                echo 'Verifying all pods are running...'
+                sh 'kubectl get pods -n wellnesshub'
+                sh 'kubectl get svc -n wellnesshub'
+                sh '''
+                    RUNNING=$(kubectl get pods -n wellnesshub --field-selector=status.phase=Running | grep -c "Running" || true)
+                    echo "Running pods: $RUNNING"
+                '''
+            }
+        }
+    }
+
+    post {
+        success {
+            echo 'K8S DEPLOYMENT COMPLETED SUCCESSFULLY!'
+            echo 'Services accessible at:'
+            echo '   Frontend  : http://100.122.204.32:30080'
+            echo '   Gateway   : http://100.122.204.32:30762'
+            echo '   Eureka    : http://100.122.204.32:9761'
+
+            mail(
+                to: "${MAIL_TO}",
+                subject: "SUCCESS - WellnessHub K8s Deployment #${BUILD_NUMBER}",
+                body: """
+Bonjour,
+
+Le deploiement Kubernetes WellnessHub a ete mis a jour avec succes !
+
+Details :
+- Job        : ${JOB_NAME}
+- Build N    : ${BUILD_NUMBER}
+- Duree      : ${currentBuild.durationString}
+- Declenche  : Apres succes pipeline backend
+
+Services mis a jour dans Kubernetes :
+- wellness-eureka:latest
+- wellness-expertms:latest
+- wellness-gateway:latest
+- wellness-front-prod:latest
+
+URLs d acces :
+- Frontend  : http://100.122.204.32:30080
+- Gateway   : http://100.122.204.32:30762
+- Eureka    : http://100.122.204.32:9761
+
+Lien du build : ${BUILD_URL}
+
+Cordialement,
+Jenkins K8s Pipeline - WellnessHub x AuroraIQ
+                """
+            )
+        }
+
+        failure {
+            echo 'K8S DEPLOYMENT FAILED!'
+
+            mail(
+                to: "${MAIL_TO}",
+                subject: "FAILED - WellnessHub K8s Deployment #${BUILD_NUMBER}",
+                body: """
+Bonjour,
+
+Le deploiement Kubernetes WellnessHub a echoue !
+
+Details :
+- Job        : ${JOB_NAME}
+- Build N    : ${BUILD_NUMBER}
+- Duree      : ${currentBuild.durationString}
+
+Consultez les logs :
+${BUILD_URL}console
+
+Cordialement,
+Jenkins K8s Pipeline - WellnessHub x AuroraIQ
+                """
+            )
+        }
+
+        always {
+            echo 'K8s Pipeline execution finished.'
+            echo "Build status : ${currentBuild.currentResult}"
+        }
+    }
+}

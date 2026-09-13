@@ -1,0 +1,78 @@
+services:
+  eureka:
+    image: ${ECR_REGISTRY}/${PROJECT_NAME}/eureka:latest
+    container_name: wellness-eureka
+    environment:
+      - EUREKA_PORT=8761
+    ports:
+      - "8761:8761"
+    logging:
+      driver: awslogs
+      options:
+        awslogs-region: us-east-1
+        awslogs-group: /wellnesshub/application
+        awslogs-stream: eureka
+        awslogs-create-group: "false"
+    restart: unless-stopped
+
+  gateway:
+    image: ${ECR_REGISTRY}/${PROJECT_NAME}/gateway:latest
+    container_name: wellness-gateway
+    ports:
+      - "8080:8762"
+    environment:
+      - API_GATEWAY_PORT=8762
+      - EUREKA_HOST=eureka
+      - EUREKA_PORT=8761
+      - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://eureka:8761/eureka
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://${DB_ENDPOINT}/wellnessdb
+      - SPRING_DATASOURCE_USERNAME=${DB_USERNAME}
+      - SPRING_DATASOURCE_PASSWORD=${DB_PASSWORD}
+    logging:
+      driver: awslogs
+      options:
+        awslogs-region: us-east-1
+        awslogs-group: /wellnesshub/application
+        awslogs-stream: gateway
+        awslogs-create-group: "false"
+    depends_on:
+      - eureka
+    restart: always
+
+  expertms:
+    image: ${ECR_REGISTRY}/${PROJECT_NAME}/expertms:latest
+    container_name: wellness-expertms
+    environment:
+      - EXPERT_MS_PORT=8764
+      - EUREKA_HOST=eureka
+      - EUREKA_PORT=8761
+      - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://eureka:8761/eureka
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://${DB_ENDPOINT}/wellnessdb
+      - SPRING_DATASOURCE_USERNAME=${DB_USERNAME}
+      - SPRING_DATASOURCE_PASSWORD=${DB_PASSWORD}
+    logging:
+      driver: awslogs
+      options:
+        awslogs-region: us-east-1
+        awslogs-group: /wellnesshub/application
+        awslogs-stream: expertms
+        awslogs-create-group: "false"
+    depends_on:
+      - eureka
+    restart: always
+
+  front:
+    image: ${ECR_REGISTRY}/${PROJECT_NAME}/front:latest
+    container_name: wellness-front
+    ports:
+      - "80:80"
+    logging:
+      driver: awslogs
+      options:
+        awslogs-region: us-east-1
+        awslogs-group: /wellnesshub/application
+        awslogs-stream: front
+        awslogs-create-group: "false"
+    depends_on:
+      - gateway
+    restart: always

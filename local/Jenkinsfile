@@ -1,0 +1,340 @@
+pipeline {
+    agent any
+
+    environment {
+        REGISTRY        = "192.168.49.1:5000"
+        IMG_EUREKA      = "${REGISTRY}/wellness-eureka"
+        IMG_ADMINMS     = "${REGISTRY}/wellness-adminms"
+        IMG_EXPERTMS    = "${REGISTRY}/wellness-expertms"
+        IMG_ENTREPRISEX = "${REGISTRY}/wellness-entreprisex"
+        IMG_ENTREPRISEY = "${REGISTRY}/wellness-entreprisey"
+        IMG_GATEWAY     = "${REGISTRY}/wellness-gateway"
+        MAIL_TO         = "n.belkhiria@wellnesshub.com.tn"
+        BUILD_TAG       = "build-${BUILD_NUMBER}"
+    }
+
+    triggers {
+        githubPush()
+    }
+
+    stages {
+
+        stage('Clone Repository') {
+            steps {
+                echo 'Cloning WellnessHub Backend from GitHub...'
+                git branch: 'main',
+                    credentialsId: 'github-credentials',
+                    url: 'https://github.com/yedeshamda/WellnessHub-Backend'
+                echo 'Code cloned successfully — Branch: main'
+                sh 'ls -la'
+            }
+        }
+
+        stage('Verify Environment') {
+            steps {
+                echo 'Verifying Docker and Docker Compose...'
+                sh 'docker --version'
+                sh 'docker-compose --version'
+                sh 'docker ps'
+                echo 'Environment OK'
+            }
+        }
+
+        stage('Detect Changes') {
+            steps {
+                script {
+                    echo 'Detecting which services changed...'
+                    try {
+                        env.CHANGED_FILES = sh(
+                            script: "git diff --name-only HEAD~1 HEAD || git diff --name-only HEAD",
+                            returnStdout: true
+                        ).trim()
+                    } catch (e) {
+                        env.CHANGED_FILES = "ALL"
+                    }
+
+                    echo "Changed files : ${env.CHANGED_FILES}"
+
+                    // Determine which services need rebuild
+                    env.BUILD_EUREKA      = (env.CHANGED_FILES == "ALL" || env.CHANGED_FILES.contains('Eureka'))      ? "true" : "false"
+                    env.BUILD_ADMINMS     = (env.CHANGED_FILES == "ALL" || env.CHANGED_FILES.contains('AdminMs'))     ? "true" : "false"
+                    env.BUILD_EXPERTMS    = (env.CHANGED_FILES == "ALL" || env.CHANGED_FILES.contains('ExpertMs'))    ? "true" : "false"
+                    env.BUILD_ENTREPRISEX = (env.CHANGED_FILES == "ALL" || env.CHANGED_FILES.contains('EntrepriseX')) ? "true" : "false"
+                    env.BUILD_ENTREPRISEY = (env.CHANGED_FILES == "ALL" || env.CHANGED_FILES.contains('EntrepriseY')) ? "true" : "false"
+                    env.BUILD_GATEWAY     = (env.CHANGED_FILES == "ALL" || env.CHANGED_FILES.contains('API_Gateway')) ? "true" : "false"
+
+                    echo """
+Services to rebuild :
+  Eureka      : ${env.BUILD_EUREKA}
+  AdminMS     : ${env.BUILD_ADMINMS}
+  ExpertMS    : ${env.BUILD_EXPERTMS}
+  EntrepriseX : ${env.BUILD_ENTREPRISEX}
+  EntrepriseY : ${env.BUILD_ENTREPRISEY}
+  Gateway     : ${env.BUILD_GATEWAY}
+                    """
+                }
+            }
+        }
+
+        stage('Build Docker Images') {
+            steps {
+                script {
+                    echo 'Building changed Docker images...'
+
+                    if (env.BUILD_EUREKA == "true") {
+                        sh "docker build -t ${IMG_EUREKA}:latest -t ${IMG_EUREKA}:${BUILD_TAG} ./Eureka"
+                        echo "Eureka built!"
+                    } else {
+                        echo "Eureka unchanged — skipping build"
+                    }
+
+                    if (env.BUILD_ADMINMS == "true") {
+                        sh "docker build -t ${IMG_ADMINMS}:latest -t ${IMG_ADMINMS}:${BUILD_TAG} ./AdminMs"
+                        echo "AdminMS built!"
+                    } else {
+                        echo "AdminMS unchanged — skipping build"
+                    }
+
+                    if (env.BUILD_EXPERTMS == "true") {
+                        sh "docker build -t ${IMG_EXPERTMS}:latest -t ${IMG_EXPERTMS}:${BUILD_TAG} ./ExpertMs"
+                        echo "ExpertMS built!"
+                    } else {
+                        echo "ExpertMS unchanged — skipping build"
+                    }
+
+                    if (env.BUILD_ENTREPRISEX == "true") {
+                        sh "docker build -t ${IMG_ENTREPRISEX}:latest -t ${IMG_ENTREPRISEX}:${BUILD_TAG} ./EntrepriseX"
+                        echo "EntrepriseX built!"
+                    } else {
+                        echo "EntrepriseX unchanged — skipping build"
+                    }
+
+                    if (env.BUILD_ENTREPRISEY == "true") {
+                        sh "docker build -t ${IMG_ENTREPRISEY}:latest -t ${IMG_ENTREPRISEY}:${BUILD_TAG} ./EntrepriseY"
+                        echo "EntrepriseY built!"
+                    } else {
+                        echo "EntrepriseY unchanged — skipping build"
+                    }
+
+                    if (env.BUILD_GATEWAY == "true") {
+                        sh "docker build -t ${IMG_GATEWAY}:latest -t ${IMG_GATEWAY}:${BUILD_TAG} ./API_Gateway"
+                        echo "Gateway built!"
+                    } else {
+                        echo "Gateway unchanged — skipping build"
+                    }
+
+                    sh 'docker images | grep 192.168.49.1'
+                }
+            }
+        }
+
+        stage('Push to Local Registry') {
+            steps {
+                script {
+                    echo 'Pushing images to local registry...'
+
+                    if (env.BUILD_EUREKA == "true") {
+                        sh "docker push ${IMG_EUREKA}:latest"
+                        sh "docker push ${IMG_EUREKA}:${BUILD_TAG}"
+                    }
+                    if (env.BUILD_ADMINMS == "true") {
+                        sh "docker push ${IMG_ADMINMS}:latest"
+                        sh "docker push ${IMG_ADMINMS}:${BUILD_TAG}"
+                    }
+                    if (env.BUILD_EXPERTMS == "true") {
+                        sh "docker push ${IMG_EXPERTMS}:latest"
+                        sh "docker push ${IMG_EXPERTMS}:${BUILD_TAG}"
+                    }
+                    if (env.BUILD_ENTREPRISEX == "true") {
+                        sh "docker push ${IMG_ENTREPRISEX}:latest"
+                        sh "docker push ${IMG_ENTREPRISEX}:${BUILD_TAG}"
+                    }
+                    if (env.BUILD_ENTREPRISEY == "true") {
+                        sh "docker push ${IMG_ENTREPRISEY}:latest"
+                        sh "docker push ${IMG_ENTREPRISEY}:${BUILD_TAG}"
+                    }
+                    if (env.BUILD_GATEWAY == "true") {
+                        sh "docker push ${IMG_GATEWAY}:latest"
+                        sh "docker push ${IMG_GATEWAY}:${BUILD_TAG}"
+                    }
+
+                    echo 'All changed images pushed to local registry!'
+                }
+            }
+        }
+
+        stage('Deploy with Docker Compose') {
+            steps {
+                echo 'Stopping old containers...'
+                sh 'docker-compose down --remove-orphans || true'
+                echo 'Starting all services...'
+                sh 'docker-compose up -d'
+                echo 'Waiting 20s for PostgreSQL to be ready...'
+                sh 'sleep 20'
+            }
+        }
+
+        stage('Initialize Databases') {
+            steps {
+                echo 'Creating PostgreSQL databases if not exist...'
+                sh '''
+                    docker exec wellness-postgres psql -U postgres -tc \
+                        "SELECT 1 FROM pg_database WHERE datname = 'WellnessHubAdmin'" \
+                        | grep -q 1 || \
+                        docker exec wellness-postgres psql -U postgres -c \
+                        "CREATE DATABASE \\"WellnessHubAdmin\\";"
+
+                    docker exec wellness-postgres psql -U postgres -tc \
+                        "SELECT 1 FROM pg_database WHERE datname = 'WellnessHubbase'" \
+                        | grep -q 1 || \
+                        docker exec wellness-postgres psql -U postgres -c \
+                        "CREATE DATABASE \\"WellnessHubbase\\";"
+
+                    docker exec wellness-postgres psql -U postgres -tc \
+                        "SELECT 1 FROM pg_database WHERE datname = 'EntrepriseXdb'" \
+                        | grep -q 1 || \
+                        docker exec wellness-postgres psql -U postgres -c \
+                        "CREATE DATABASE \\"EntrepriseXdb\\";"
+
+                    docker exec wellness-postgres psql -U postgres -tc \
+                        "SELECT 1 FROM pg_database WHERE datname = 'EntrepriseYdb'" \
+                        | grep -q 1 || \
+                        docker exec wellness-postgres psql -U postgres -c \
+                        "CREATE DATABASE \\"EntrepriseYdb\\";"
+
+                    echo "Databases initialized successfully!"
+                    docker exec wellness-postgres psql -U postgres -c "\\l"
+                '''
+                echo 'Waiting 40s for microservices to start...'
+                sh 'sleep 40'
+            }
+        }
+
+        stage('Verify Deployment') {
+            steps {
+                echo 'Checking running containers...'
+                sh 'docker-compose ps'
+                echo 'Checking Eureka health...'
+                sh '''
+                    echo "--- Eureka ---"
+                    curl -s http://localhost:8761/actuator/health || echo "not ready yet"
+                    echo ""
+                    echo "--- Registered services ---"
+                    curl -s http://localhost:8761/eureka/apps | grep -o "<name>[^<]*</name>" || echo "checking..."
+                '''
+            }
+        }
+
+        stage('Cleanup — Keep Last 2 Builds') {
+            steps {
+                script {
+                    echo 'Cleaning dangling images and keeping last 2 build tags...'
+                    sh '''
+                        # Supprimer les images dangling
+                        docker image prune -f
+
+                        # Pour chaque service, garder seulement les 2 derniers build-X
+                        for img in wellness-eureka wellness-adminms wellness-expertms wellness-entreprisex wellness-entreprisey wellness-gateway; do
+                            TAGS=$(docker images 192.168.49.1:5000/${img} --format "{{.Tag}}" | grep "^build-" | sort -t- -k2 -n)
+                            COUNT=$(echo "$TAGS" | grep -c "build-" 2>/dev/null || echo "0")
+                            if [ "$COUNT" -gt 2 ]; then
+                                TO_DELETE=$(echo "$TAGS" | head -n -2)
+                                for tag in $TO_DELETE; do
+                                    echo "Removing old image: 192.168.49.1:5000/${img}:${tag}"
+                                    docker rmi 192.168.49.1:5000/${img}:${tag} || true
+                                done
+                            fi
+                        done
+
+                        echo "Cleanup done! Current images:"
+                        docker images | grep 192.168.49.1
+                    '''
+                }
+            }
+        }
+    }
+
+    post {
+        success {
+            echo 'PIPELINE COMPLETED SUCCESSFULLY!'
+            echo 'Application is running at:'
+            echo '   Eureka Dashboard : http://100.122.204.32:8761'
+            echo '   API Gateway      : http://100.122.204.32:8762'
+            echo '   Admin MS         : http://100.122.204.32:8763'
+            echo '   Expert MS        : http://100.122.204.32:8764'
+            echo '   Entreprise X     : http://100.122.204.32:8765'
+            echo '   Entreprise Y     : http://100.122.204.32:8766'
+
+            mail(
+                to: "${MAIL_TO}",
+                subject: "SUCCESS - WellnessHub Pipeline Build #${BUILD_NUMBER}",
+                body: """
+Bonjour,
+
+Le pipeline Jenkins WellnessHub a ete execute avec succes !
+
+Details du build :
+- Job        : ${JOB_NAME}
+- Build N    : ${BUILD_NUMBER}
+- Build Tag  : ${BUILD_TAG}
+- Duree      : ${currentBuild.durationString}
+- Declenche  : Push sur branche main (GitHub Webhook)
+
+Services deployes et accessibles :
+- Eureka Dashboard : http://100.122.204.32:8761
+- API Gateway      : http://100.122.204.32:8762
+- Admin MS         : http://100.122.204.32:8763
+- Expert MS        : http://100.122.204.32:8764
+- Entreprise X     : http://100.122.204.32:8765
+- Entreprise Y     : http://100.122.204.32:8766
+
+Images dans la registry locale (192.168.49.1:5000) :
+- wellness-X:latest    (version courante)
+- wellness-X:${BUILD_TAG} (version archivee)
+
+Lien du build : ${BUILD_URL}
+
+Cordialement,
+Jenkins CI/CD - WellnessHub x AuroraIQ
+                """
+            )
+
+            // Declencher le pipeline K8s apres succes
+            build job: 'wellnesshub-k8s-pipeline', wait: false
+        }
+
+        failure {
+            echo 'PIPELINE FAILED!'
+            echo 'Rolling back - stopping containers...'
+            sh 'docker-compose down || true'
+
+            mail(
+                to: "${MAIL_TO}",
+                subject: "FAILED - WellnessHub Pipeline Build #${BUILD_NUMBER}",
+                body: """
+Bonjour,
+
+Le pipeline Jenkins WellnessHub a echoue !
+
+Details du build :
+- Job        : ${JOB_NAME}
+- Build N    : ${BUILD_NUMBER}
+- Duree      : ${currentBuild.durationString}
+
+Action effectuee : Rollback automatique (docker-compose down)
+
+Consultez les logs pour plus de details :
+${BUILD_URL}console
+
+Cordialement,
+Jenkins CI/CD - WellnessHub x AuroraIQ
+                """
+            )
+        }
+
+        always {
+            echo 'Pipeline execution finished.'
+            echo "Build status : ${currentBuild.currentResult}"
+        }
+    }
+}
