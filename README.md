@@ -17,7 +17,7 @@
 ```
 wellnesshub-cicd/
 │
-├── local/                          ← Pipelines VM locale (AuroraIQ)
+├── local/                          ← Pipelines VM locale
 │   ├── Jenkinsfile                 ← Pipeline Docker Compose (backend)
 │   └── Jenkinsfile-k8s             ← Pipeline Kubernetes (rollout auto)
 │
